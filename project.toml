@@ -1,0 +1,16 @@
+[project]
+name = "gpt-drift"
+version = "0.1.0"
+description = "Detect when LLM APIs silently change behavior"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Anna"}]
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24.0"]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0.0"]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Repository = "https://github.com/joannany/gpt-drift"
