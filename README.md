@@ -103,6 +103,7 @@ The default is 0.15 (15% average change). Access via `report.drift_detected`. Tu
 ## Disclaimer
 
 This tool measures behavioral drift, not correctness. It is intended for model evaluation and monitoring purposes. Do not include sensitive prompts or store sensitive data in raw responses.
+> Note: This project is not affiliated with or endorsed by any LLM provider.
 
 ## License
 
