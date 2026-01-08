@@ -109,11 +109,11 @@ def extract_metrics(responses: list[str]) -> dict:
     
     # Hedging language (uncertainty markers)
     hedge_words = ["might", "maybe", "perhaps", "could", "possibly", "uncertain", "likely"]
-    hedge_count = sum(
-        sum(1 for word in hedge_words if word in r.lower())
+    hedging_responses = sum(
+        any(word in r.lower() for word in hedge_words)
         for r in responses
     )
-    metrics["hedging_rate"] = hedge_count / len(responses)
+    metrics["hedging_rate"] = hedging_responses / len(responses)
     
     # Refusal rate
     refusal_markers = ["i cannot", "i can't", "i'm not able", "i won't"]
@@ -133,14 +133,14 @@ def extract_metrics(responses: list[str]) -> dict:
     
     # First-person usage
     first_person = ["i ", "i'm", "i've", "my ", "me "]
-    fp_count = sum(
-        sum(1 for fp in first_person if fp in r.lower())
+    fp_responses = sum(
+        any(fp in r.lower() for fp in first_person)
         for r in responses
     )
-    metrics["first_person_rate"] = fp_count / len(responses)
+    metrics["first_person_rate"] = fp_responses / len(responses)
     
     # Response hash (exact match detection)
-    combined = "".join(sorted(responses))
+    combined = "\n---\n".join(responses)
     metrics["response_hash"] = hashlib.md5(combined.encode()).hexdigest()[:8]
     
     return metrics
