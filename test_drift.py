@@ -40,6 +40,20 @@ def test_extract_metrics_detects_refusals():
     assert refusing_metrics["refusal_rate"] > helpful_metrics["refusal_rate"]
 
 
+def test_extract_metrics_rates_within_bounds():
+    """Rates should be normalized to 0-1 per response."""
+    responses = [
+        "I think maybe this could work.",
+        "Here is a direct answer without hedging.",
+    ]
+    metrics = extract_metrics(responses)
+    
+    assert 0 <= metrics["hedging_rate"] <= 1
+    assert 0 <= metrics["first_person_rate"] <= 1
+    assert 0 <= metrics["refusal_rate"] <= 1
+    assert 0 <= metrics["list_usage_rate"] <= 1
+
+
 def test_fingerprint_save_load():
     """Fingerprints should roundtrip through JSON."""
     fp = Fingerprint(
@@ -120,6 +134,7 @@ if __name__ == "__main__":
         test_extract_metrics_captures_length,
         test_extract_metrics_detects_hedging,
         test_extract_metrics_detects_refusals,
+        test_extract_metrics_rates_within_bounds,        
         test_fingerprint_save_load,
         test_compare_fingerprints_no_drift,
         test_compare_fingerprints_detects_drift,
