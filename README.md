@@ -108,3 +108,14 @@ This tool measures behavioral drift, not correctness. It is intended for model e
 ## License
 
 MIT
+
+## Citation
+
+```bibtex
+@software{jo_2026_gptdrift,
+  author = {Jo, Anna},
+  title  = {GPT Drift},
+  year   = {2026},
+  url    = {https://github.com/joannany/gpt-drift}
+}
+```
