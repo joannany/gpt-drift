@@ -1,16 +1,34 @@
 [project]
 name = "gpt-drift"
-version = "0.1.0"
-description = "Detect when LLM APIs silently change behavior"
+version = "1.0.0"
+description = "Behavioral drift measurement for language models"
 readme = "README.md"
 license = {text = "MIT"}
-authors = [{name = "Anna"}]
+authors = [{name = "Anna Jo"}]
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24.0"]
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+]
 
 [project.optional-dependencies]
 openai = ["openai>=1.0.0"]
-dev = ["pytest>=7.0"]
+viz = ["matplotlib>=3.7.0"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0"]
+all = ["gpt-drift[openai,viz,dev]"]
+
+[project.scripts]
+gpt-drift = "gpt_drift.cli:main"
 
 [project.urls]
 Repository = "https://github.com/joannany/gpt-drift"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
