@@ -84,7 +84,7 @@ def collect_fingerprint(
             all_values = [getattr(r, key) for r in all_results]
             mean = float(np.mean(all_values))
             std = float(np.std(all_values, ddof=1)) if len(all_values) > 1 else 0.0
-            cv = std / mean if mean != 0 else 0.0
+            cv = std / abs(mean) if mean != 0 else 0.0
             aggregate[f"{key}_std"] = std
             aggregate[f"{key}_cv"] = cv
 
