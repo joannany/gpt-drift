@@ -303,6 +303,18 @@ class TestCollector:
         assert len(fp.per_prompt_metrics) == 2
         assert "hedging_rate_std" in fp.metrics
         assert "hedging_rate_cv" in fp.metrics
+        
+    def test_collect_with_negative_mean_cv_non_negative(self):
+        def mock_model(prompt: str) -> str:
+            return "Unfortunately I apologize. I'm sorry, this is difficult."
+
+        fp = collect_fingerprint(
+            mock_model, "mock",
+            probes=["Prompt 1", "Prompt 2"],
+            n_runs=3,
+        )
+        assert fp.metrics["sentiment_polarity"] < 0
+        assert fp.metrics["sentiment_polarity_cv"] >= 0
 
 
 # ── Pipeline Tests ───────────────────────────────────────────────────────────
