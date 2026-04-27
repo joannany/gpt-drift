@@ -27,6 +27,7 @@ import json
 import os
 import sys
 import time
+from typing import Any
 from datetime import datetime
 from pathlib import Path
 
@@ -50,21 +51,55 @@ MODEL_B = "gpt-5.4"
 TEMPERATURE = 0.7
 MAX_TOKENS = 1024
 N_RUNS = 5
+MAX_RETRIES = 3
+RETRY_BACKOFF_SEC = 1.5
 
 # Output directory
 OUTPUT_DIR = Path("results")
 
 
+def _coerce_content_to_text(content: Any) -> str:
+    """Normalize OpenAI content payload into plain text."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(item.get("text", ""))
+            elif isinstance(item, str):
+                parts.append(item)
+            return "".join(parts)
+        return ""
+        
+
 def create_model_fn(client: OpenAI, model: str):
     """Create a function that queries an OpenAI model."""
     def model_fn(prompt: str) -> str:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-        )
-        return response.choices[0].message.content or ""
+        last_err = None
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=TEMPERATURE,
+                    max_tokens=MAX_TOKENS,
+                )
+                return _coerce_content_to_text(response.choices[0].message.content)
+            except Exception as err:
+                last_err = err
+                if attempt == MAX_RETRIES:
+                    break
+                sleep_sec = RETRY_BACKOFF_SEC * attempt
+                print(
+                    f"Warning: API call failed for model={model} "
+                    f"(attempt {attempt}/{MAX_RETRIES}): {err}. "
+                    f"Retrying in {sleep_sec:.1f}s..."
+                )
+                time.sleep(sleep_sec)
+                
+        raise RuntimeError(f"Failed to query model {model} after {MAX_RETRIES} attempts") from last_err
+        
     return model_fn
 
 
@@ -193,6 +228,8 @@ def main():
                         help=f"Comparison model (default: {MODEL_B})")
     parser.add_argument("--runs", type=int, default=N_RUNS,
                         help=f"Runs per prompt (default: {N_RUNS})")
+    parser.add_argument("--price-per-call", type=float, default=0.01,
+                        help="Rough cost estimate in USD per API call (default: 0.01)")
     parser.add_argument("--quick", action="store_true",
                         help="Quick mode: 10 probes, 3 runs")
     parser.add_argument("--output", default=str(OUTPUT_DIR),
@@ -208,6 +245,10 @@ def main():
         run_comparison(args.compare[0], args.compare[1], output_dir)
         return
 
+    if args.runs < 1:
+        print("Error: --runs must be >= 1")
+        sys.exit(2)
+
     # Check API key
     if not os.getenv("OPENAI_API_KEY"):
         print("Error: OPENAI_API_KEY environment variable not set.")
@@ -218,12 +259,12 @@ def main():
 
     # Select probes
     if args.quick:
-        # 2 probes per category = 10 total
+        # 2 probes per category
         probes = []
         for category_probes in PROBE_CATEGORIES.values():
             probes.extend(category_probes[:2])
         n_runs = 3
-        print("Quick mode: 10 probes, 3 runs per prompt")
+        print(f"Quick mode: {len(probes)} probes, 3 runs per prompt")
     else:
         probes = DEFAULT_PROBES
         n_runs = args.runs
@@ -231,7 +272,7 @@ def main():
     # Estimate cost
     est_calls = len(probes) * n_runs * (1 if args.model else 2)
     print(f"\nEstimated API calls: {est_calls}")
-    print(f"Estimated cost: ~${est_calls * 0.01:.2f} (rough estimate)")
+    print(f"Estimated cost: ~${est_calls * args.price_per_call:.2f} (rough estimate)")
 
     # Single model mode
     if args.model:
