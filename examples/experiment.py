@@ -23,7 +23,7 @@ try:
 except ImportError:
     HAS_OPENAI = False
 
-from gpt_drift import collect_fingerprint, detect_drift, Fingerprint
+from gpt_drift import collect_fingerprint, detect_drift
 
 
 BASELINE_PATH = "baseline.json"
@@ -69,6 +69,9 @@ def main():
     parser.add_argument("--create-baseline", action="store_true", help="Create new baseline fingerprint")
     parser.add_argument("--check", action="store_true", help="Check current behavior against baseline")
     parser.add_argument("--model", default="gpt-5.2", help="OpenAI model to test")
+    parser.add_argument("--runs", type=int, default=5, help="Runs per probe (default: 5)")
+    parser.add_argument("--threshold", type=float, default=0.5, help="Drift effect size threshold (default: 0.5)")
+    parser.add_argument("--baseline-path", default=BASELINE_PATH, help=f"Baseline fingerprint path (default: {BASELINE_PATH})")
     parser.add_argument("--mock", action="store_true", help="Use mock model (no API needed)")
     parser.add_argument("--mock-version", default="v1", help="Mock model version (v1 or v2)")
     args = parser.parse_args()
@@ -90,9 +93,9 @@ def main():
     
     if args.create_baseline:
         print(f"\nCollecting baseline fingerprint for {model_name}...")
-        fingerprint = collect_fingerprint(model_fn, model_name)
-        fingerprint.save(BASELINE_PATH)
-        print(f"Baseline saved to {BASELINE_PATH}")
+        fingerprint = collect_fingerprint(model_fn, model_name, n_runs=args.runs)
+        fingerprint.save(args.baseline_path)
+        print(f"Baseline saved to {args.baseline_path}")
         print(f"\nMetrics captured:")
         for key, value in fingerprint.metrics.items():
             if isinstance(value, float):
@@ -101,13 +104,19 @@ def main():
                 print(f"  {key}: {value}")
                 
     elif args.check:
-        if not Path(BASELINE_PATH).exists():
-            print(f"No baseline found at {BASELINE_PATH}")
+        if not Path(args.baseline_path).exists():
+            print(f"No baseline found at {args.baseline_path}")
             print("Run with --create-baseline first.")
             return
         
         print(f"\nChecking {model_name} against baseline...")
-        report = detect_drift(model_fn, BASELINE_PATH, model_name)
+        report = detect_drift(
+            model_fn,
+            args.baseline_path,
+            model_name,
+            n_runs=args.runs,
+            threshold=args.threshold,
+        )
         print(f"\n{report.summary()}")
         
     else:
