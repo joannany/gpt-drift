@@ -242,9 +242,6 @@ pip install gpt-drift
 # With OpenAI support
 pip install gpt-drift[openai]
 
-# With visualization (planned)
-pip install gpt-drift[viz]
-
 # Development
 pip install gpt-drift[dev]
 ```
