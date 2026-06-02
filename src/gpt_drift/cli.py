@@ -28,7 +28,7 @@ def main():
     run_parser = sub.add_parser("run", help="Collect a behavioral fingerprint")
     run_parser.add_argument("model", help="Model name (e.g., gpt-5.2, gpt-5.4)")
     run_parser.add_argument("--output", "-o", default=None, help="Output JSON path")
-    run_parser.add_argument("--runs", "-n", type=int, default=1, help="Runs per prompt (default: 1)")
+    run_parser.add_argument("--runs", "-n", type=int, default=5, help="Runs per prompt (default: 5)")
     run_parser.add_argument("--mock", action="store_true", help="Use mock model (no API)")
     run_parser.add_argument("--mock-version", default="v1", help="Mock version (v1 or v2)")
 
@@ -130,29 +130,33 @@ def _get_model_fn(args):
     if args.mock:
         return _mock_model_fn(args.mock_version)
 
-    # Try OpenAI
     try:
         from openai import OpenAI
-        import os
-        if os.getenv("OPENAI_API_KEY"):
-            client = OpenAI()
-            model = args.model
+    except ImportError as exc:
+        raise SystemExit(
+            "OpenAI support is not installed. Install the openai extra or rerun with "
+            "--mock for deterministic mock data."
+        ) from exc
 
-            def openai_fn(prompt: str) -> str:
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.7,
-                    max_tokens=1024,
-                )
-                return response.choices[0].message.content
-            return openai_fn
-    except ImportError:
-        pass
+    import os
+    if not os.getenv("OPENAI_API_KEY"):
+        raise SystemExit(
+            "OPENAI_API_KEY is not set. Set it for real model runs, or rerun with "
+            "--mock for deterministic mock data."
+        )
 
-    print("No OpenAI API key found. Using mock model.")
-    print("Install openai and set OPENAI_API_KEY for real models.\n")
-    return _mock_model_fn(args.mock_version if hasattr(args, 'mock_version') else "v1")
+    client = OpenAI()
+    model = args.model
+
+    def openai_fn(prompt: str) -> str:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1024,
+        )
+        return response.choices[0].message.content
+    return openai_fn
 
 
 def _mock_model_fn(version: str = "v1"):

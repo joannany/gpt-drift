@@ -6,19 +6,19 @@ responses." This script measures how.
 
 Usage:
     # Full comparison (requires OPENAI_API_KEY)
-    python experiments/compare_5_2_vs_5_4.py
+    python experiments/compare_5_2_vs_5_4.py --stable-output-names
 
     # Single model fingerprint
-    python experiments/compare_5_2_vs_5_4.py --model gpt-5.4
+    python experiments/compare_5_2_vs_5_4.py --model gpt-5.4 --stable-output-names
 
     # Fewer probes for quick test
-    python experiments/compare_5_2_vs_5_4.py --quick
+    python experiments/compare_5_2_vs_5_4.py --quick --stable-output-names
 
     # Custom runs per prompt
     python experiments/compare_5_2_vs_5_4.py --runs 10
 
 Requirements:
-    pip install gpt-drift[openai]
+    pip install -e '.[openai]'
     export OPENAI_API_KEY=your_key
 """
 
@@ -30,12 +30,6 @@ import time
 from typing import Any
 from datetime import datetime
 from pathlib import Path
-
-try:
-    from openai import OpenAI
-except ImportError:
-    print("OpenAI package required: pip install openai")
-    sys.exit(1)
 
 from gpt_drift import collect_fingerprint, compare_fingerprints
 from gpt_drift.probes import DEFAULT_PROBES, PROBE_CATEGORIES
@@ -58,6 +52,11 @@ RETRY_BACKOFF_SEC = 1.5
 OUTPUT_DIR = Path("results")
 
 
+def _safe_model_filename(model: str) -> str:
+    """Return a filesystem-safe model identifier for deterministic output files."""
+    return model.replace("/", "_").replace("-", "_").replace(".", "_")
+
+
 def _coerce_content_to_text(content: Any) -> str:
     """Normalize OpenAI content payload into plain text."""
     if isinstance(content, str):
@@ -73,7 +72,7 @@ def _coerce_content_to_text(content: Any) -> str:
         return ""
         
 
-def create_model_fn(client: OpenAI, model: str):
+def create_model_fn(client: Any, model: str):
     """Create a function that queries an OpenAI model."""
     def model_fn(prompt: str) -> str:
         last_err = None
@@ -103,8 +102,9 @@ def create_model_fn(client: OpenAI, model: str):
     return model_fn
 
 
-def run_fingerprint(client: OpenAI, model: str, probes: list[str],
-                    n_runs: int, output_dir: Path) -> Path:
+def run_fingerprint(client: Any, model: str, probes: list[str],
+                    n_runs: int, output_dir: Path,
+                    stable_output_names: bool = False) -> Path:
     """Collect and save a fingerprint for a model."""
     print(f"\n{'='*60}")
     print(f"Collecting fingerprint: {model}")
@@ -127,8 +127,11 @@ def run_fingerprint(client: OpenAI, model: str, probes: list[str],
 
     # Save fingerprint
     output_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{model.replace('-', '_')}_{timestamp}.json"
+    if stable_output_names:
+        filename = f"{_safe_model_filename(model)}.json"
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{_safe_model_filename(model)}_{timestamp}.json"
     filepath = output_dir / filename
     fp.save(str(filepath))
 
@@ -152,7 +155,8 @@ def run_fingerprint(client: OpenAI, model: str, probes: list[str],
     return filepath
 
 
-def run_comparison(path_a: str, path_b: str, output_dir: Path):
+def run_comparison(path_a: str, path_b: str, output_dir: Path,
+                   stable_output_names: bool = False):
     """Compare two fingerprints and save the report."""
     from gpt_drift.fingerprint import Fingerprint
 
@@ -168,8 +172,11 @@ def run_comparison(path_a: str, path_b: str, output_dir: Path):
 
     # Save JSON report
     output_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_path = output_dir / f"drift_report_{timestamp}.json"
+    if stable_output_names:
+        report_path = output_dir / "drift_report.json"
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_path = output_dir / f"drift_report_{timestamp}.json"
     report.save(str(report_path))
     print(f"\nFull report saved to: {report_path}")
 
@@ -236,13 +243,15 @@ def main():
                         help="Output directory")
     parser.add_argument("--compare", nargs=2, metavar=("FILE_A", "FILE_B"),
                         help="Compare two existing fingerprint files")
+    parser.add_argument("--stable-output-names", action="store_true",
+                        help="Write stable filenames such as results/gpt_5_2.json")
     args = parser.parse_args()
 
     output_dir = Path(args.output)
 
     # Compare existing files
     if args.compare:
-        run_comparison(args.compare[0], args.compare[1], output_dir)
+        run_comparison(args.compare[0], args.compare[1], output_dir, args.stable_output_names)
         return
 
     if args.runs < 1:
@@ -253,6 +262,12 @@ def main():
     if not os.getenv("OPENAI_API_KEY"):
         print("Error: OPENAI_API_KEY environment variable not set.")
         print("Export your API key: export OPENAI_API_KEY=your_key")
+        sys.exit(1)
+
+    try:
+        from openai import OpenAI
+    except ImportError:
+        print("OpenAI package required: pip install -e '.[openai]'")
         sys.exit(1)
 
     client = OpenAI()
@@ -276,16 +291,16 @@ def main():
 
     # Single model mode
     if args.model:
-        run_fingerprint(client, args.model, probes, n_runs, output_dir)
+        run_fingerprint(client, args.model, probes, n_runs, output_dir, args.stable_output_names)
         return
 
     # Full comparison
     print(f"\nRunning full comparison: {args.model_a} vs {args.model_b}")
 
-    path_a = run_fingerprint(client, args.model_a, probes, n_runs, output_dir)
-    path_b = run_fingerprint(client, args.model_b, probes, n_runs, output_dir)
+    path_a = run_fingerprint(client, args.model_a, probes, n_runs, output_dir, args.stable_output_names)
+    path_b = run_fingerprint(client, args.model_b, probes, n_runs, output_dir, args.stable_output_names)
 
-    run_comparison(str(path_a), str(path_b), output_dir)
+    run_comparison(str(path_a), str(path_b), output_dir, args.stable_output_names)
 
 
 if __name__ == "__main__":

@@ -283,7 +283,8 @@ class TestCollector:
 
         fp = collect_fingerprint(mock_model, "mock", probes=["Test prompt 1", "Test prompt 2"])
         assert fp.model == "mock"
-        assert len(fp.raw_responses) == 2
+        assert len(fp.raw_responses) == 10
+        assert fp.config["n_runs"] == 5
         assert "hedging_rate" in fp.metrics
 
     def test_collect_with_multi_run(self):

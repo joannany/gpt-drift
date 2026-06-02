@@ -13,7 +13,7 @@ def detect_drift(
     model_fn: Callable[[str], str],
     baseline_path: str,
     model_name: str = "unknown",
-    n_runs: int = 1,
+    n_runs: int = 5,
     threshold: float = 0.5,
 ) -> DriftReport:
     """

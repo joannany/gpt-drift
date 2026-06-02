@@ -4,28 +4,40 @@
 
 Most evaluation tools measure what models *can do*. gpt-drift measures how they *behave* — and detects when that behavior silently changes.
 
-```
-pip install gpt-drift
+Install from a local clone:
+
+```bash
+git clone https://github.com/joannany/gpt-drift.git
+cd gpt-drift
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
 
-```
-gpt-drift compare baseline.json current.json
-```
+Run the deterministic mock example without API access:
 
 ```
-Behavior Drift Summary: mock-cautious → mock-direct
+gpt-drift run mock --mock --mock-version v1 -o v1.json
+gpt-drift run mock --mock --mock-version v2 -o v2.json
+gpt-drift compare v1.json v2.json
+```
+
+The compare command prints:
+
+```
+Behavior Drift Summary: mock-v1 → mock-v2
 
 ⚠️  DRIFT DETECTED
-Overall drift score: 0.916
+Overall drift score: 2.944
 
-Construct                 A (mean±sd)     B (mean±sd)     Drift      Effect     p-value
+Construct                 A (mean±sd)     B (mean±sd)     Drift      Effect     p-value   
 -------------------------------------------------------------------------------------
-hedging_rate              0.57±0.40       0.11±0.24       -81%       1.41(L)    <0.001
-refusal_rate              0.06±0.09       0.00±0.00       -100%      0.91(L)    <0.001
-confidence_rate           0.06±0.13       0.17±0.14       +165%      0.79(M)    <0.001
-reasoning_verbosity       0.16±0.03       0.21±0.10       +32%       0.69(M)    0.001
-sentiment_polarity        0.07±0.14       0.00±0.00       -100%      0.66(M)    0.001
-safety_boundary           0.15±0.17       0.02±0.07       -90%       1.04(L)    <0.001
+hedging_rate              0.00±0.00       0.98±0.07       +100%      10.00(L)   <0.001    
+refusal_rate              0.00±0.00       0.00±0.00       +0%        0.00       1.000     
+confidence_rate           0.00±0.00       0.00±0.00       +0%        0.00       1.000     
+reasoning_verbosity       0.09±0.01       0.17±0.01       +97%       7.66(L)    <0.001    
+sentiment_polarity        0.00±0.00       0.00±0.00       +0%        0.00       1.000     
+safety_boundary           0.01±0.04       0.01±0.04       +0%        0.00       1.000     
 ```
 
 ---
@@ -64,7 +76,38 @@ gpt-drift is not a capability benchmark or a safety evaluation suite. It does no
 
 ## Quick Start
 
+### Deterministic mock example
+
+This path requires no API key.
+
+```bash
+gpt-drift run mock --mock --mock-version v1 -o v1.json
+gpt-drift run mock --mock --mock-version v2 -o v2.json
+gpt-drift compare v1.json v2.json
+```
+
+### CLI
+
+```bash
+# Collect two deterministic mock fingerprints
+gpt-drift run mock --mock --mock-version v1 -o baseline.json
+gpt-drift run mock --mock --mock-version v2 -o current.json
+
+# Compare two fingerprints
+gpt-drift compare baseline.json current.json
+
+# CI/CD regression gate (exits 1 if drift exceeds threshold)
+gpt-drift regression baseline.json current.json --threshold 0.5
+```
+
 ### Compare two models directly
+
+This path requires OpenAI support and `OPENAI_API_KEY`.
+
+```bash
+pip install -e '.[openai]'
+export OPENAI_API_KEY=your_key
+```
 
 ```python
 from openai import OpenAI
@@ -89,31 +132,16 @@ print(report.summary())
 ```python
 from gpt_drift import collect_fingerprint, detect_drift
 
+def my_model(prompt):
+    return "This is a deterministic test response."
+
 # Create baseline (run once)
-baseline = collect_fingerprint(my_model, "gpt-5.2", n_runs=5)
+baseline = collect_fingerprint(my_model, "my-model")
 baseline.save("baseline.json")
 
 # Check for drift (run periodically)
-report = detect_drift(my_model, "baseline.json", "gpt-5.2", n_runs=5)
+report = detect_drift(my_model, "baseline.json", "my-model")
 print(report.summary())
-```
-
-### CLI
-
-```bash
-# Collect a fingerprint
-gpt-drift run gpt-5.2 --runs 5 --output baseline.json
-
-# Compare two fingerprints
-gpt-drift compare baseline.json current.json
-
-# CI/CD regression gate (exits 1 if drift exceeds threshold)
-gpt-drift regression baseline.json candidate.json --threshold 0.5
-
-# Run a deterministic mock example without API access
-gpt-drift run mock --mock --mock-version v1 -o v1.json
-gpt-drift run mock --mock --mock-version v2 -o v2.json
-gpt-drift compare v1.json v2.json
 ```
 
 ---
@@ -140,7 +168,7 @@ Behavioral Metrics (6 constructs, multi-run statistics)
 Drift Statistics (Cohen's d, p-values, CV stability)
      │
      ▼
-Output: CLI report │ JSON schema │ Radar chart (planned)
+Output: CLI report │ JSON schema
 ```
 
 ### Probe categories
@@ -173,6 +201,8 @@ When `n_runs > 1`, gpt-drift generates multiple responses per prompt and reports
 gpt-drift can serve as a behavioral regression gate in deployment pipelines:
 
 ```bash
+gpt-drift run mock --mock --mock-version v1 -o production.json
+gpt-drift run mock --mock --mock-version v2 -o candidate.json
 gpt-drift regression production.json candidate.json --threshold 0.5
 ```
 
@@ -180,52 +210,44 @@ gpt-drift regression production.json candidate.json --threshold 0.5
 Behavioral Regression Report
 ============================================================
 
-  hedging_rate              +8%  (d=0.31)   ✓ within threshold
-  refusal_rate              +60% (d=1.84)   ⚠ EXCEEDS THRESHOLD
-  confidence_rate           -25% (d=0.92)   ⚠ EXCEEDS THRESHOLD
-  reasoning_verbosity       -3%  (d=0.12)   ✓ within threshold
-  sentiment_polarity        +5%  (d=0.18)   ✓ within threshold
-  safety_boundary           +12% (d=0.44)   ✓ within threshold
+  hedging_rate              +100% (d=10.00)  ⚠ EXCEEDS THRESHOLD
+  refusal_rate              +0% (d=0.00)  ✓ within threshold
+  confidence_rate           +0% (d=0.00)  ✓ within threshold
+  reasoning_verbosity       +97% (d=7.66)  ⚠ EXCEEDS THRESHOLD
+  sentiment_polarity        +0% (d=0.00)  ✓ within threshold
+  safety_boundary           +0% (d=0.00)  ✓ within threshold
 
 STATUS: REVIEW REQUIRED (2 construct(s) exceed threshold)
 ```
 
 Exit code 0 = pass, exit code 1 = review required.
 
-Try it with mock fingerprints:
-
-```bash
-gpt-drift run mock --mock --mock-version v1 -o production.json
-gpt-drift run mock --mock --mock-version v2 -o candidate.json
-gpt-drift regression production.json candidate.json --threshold 0.5
-```
-
 ---
 
 ## Machine-Readable Output
 
 ```bash
-gpt-drift compare baseline.json current.json --json
+gpt-drift compare v1.json v2.json --json
 ```
 
 ```json
 {
   "comparison": {
-    "model_a": "mock-cautious",
-    "model_b": "mock-direct",
-    "drift_score": 0.916,
+    "model_a": "mock-v1",
+    "model_b": "mock-v2",
+    "drift_score": 2.9437,
     "drift_detected": true
   },
   "constructs": [
     {
       "name": "hedging_rate",
-      "mean_a": 0.57,
-      "mean_b": 0.11,
-      "effect_size": 1.41,
-      "p_value": 0.0004,
+      "mean_a": 0.0,
+      "mean_b": 0.9773,
+      "effect_size": 10.0,
+      "p_value": 0.0,
       "drift_label": "large",
-      "stability_a": "unstable",
-      "stability_b": "unstable"
+      "stability_a": "stable",
+      "stability_b": "stable"
     }
   ]
 }
@@ -236,14 +258,20 @@ gpt-drift compare baseline.json current.json --json
 ## Installation
 
 ```bash
-# Core (numpy + scipy only)
-pip install gpt-drift
+# Clone and create a local environment
+git clone https://github.com/joannany/gpt-drift.git
+cd gpt-drift
+python3.11 -m venv .venv
+source .venv/bin/activate
 
-# With OpenAI support
-pip install gpt-drift[openai]
+# Core install
+pip install -e .
+
+# With OpenAI support for real model calls
+pip install -e '.[openai]'
 
 # Development
-pip install gpt-drift[dev]
+pip install -e '.[dev]'
 ```
 
 Requires Python ≥ 3.10.
@@ -282,7 +310,7 @@ gpt-drift/
 │           └── drift.py         # Statistical drift comparison engine
 └── tests/
     ├── __init__.py
-    └── test_drift.py            # 38 tests
+    └── test_drift.py            # test suite
 ```
 
 ---
@@ -303,12 +331,12 @@ The included experiment script runs all 50 probes against both models and maps e
 
 ```bash
 # Full comparison (50 probes × 5 runs × 2 models = 500 API calls)
-pip install gpt-drift[openai]
+pip install -e '.[openai]'
 export OPENAI_API_KEY=your_key
-python experiments/compare_5_2_vs_5_4.py
+python experiments/compare_5_2_vs_5_4.py --stable-output-names
 
 # Quick test (10 probes × 3 runs × 2 models = 60 API calls)
-python experiments/compare_5_2_vs_5_4.py --quick
+python experiments/compare_5_2_vs_5_4.py --quick --stable-output-names
 
 # Compare existing fingerprints without re-running
 python experiments/compare_5_2_vs_5_4.py --compare results/gpt_5_2.json results/gpt_5_4.json
@@ -359,11 +387,11 @@ Contributions welcome. Areas where help is especially useful:
 ## Tests
 
 ```bash
-pip install gpt-drift[dev]
+pip install -e '.[dev]'
 pytest
 ```
 
-38 tests covering segmentation, construct detection, extraction, fingerprinting, comparison, collection, pipeline integration, and construct validation sanity checks.
+The test suite covers segmentation, construct detection, extraction, fingerprinting, comparison, collection, pipeline integration, and construct validation sanity checks.
 
 ---
 

@@ -20,7 +20,7 @@ def collect_fingerprint(
     model_fn: Callable[[str], str],
     model_name: str = "unknown",
     probes: list[str] | None = None,
-    n_runs: int = 1,
+    n_runs: int = 5,
     extractor: LexicalExtractor | None = None,
 ) -> Fingerprint:
     """
@@ -30,7 +30,7 @@ def collect_fingerprint(
         model_fn: Function that takes a prompt and returns a response string.
         model_name: Identifier for the model being tested.
         probes: Prompt list. Defaults to built-in probe set.
-        n_runs: Number of runs per prompt for reproducibility (default: 1).
+        n_runs: Number of runs per prompt for reproducibility (default: 5).
                 Use n_runs >= 5 for statistical analysis.
         extractor: Extractor instance. Defaults to LexicalExtractor.
 
