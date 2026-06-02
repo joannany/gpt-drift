@@ -3,7 +3,7 @@ Signal extraction layers for behavioral measurement.
 
 Layer 1: Lexical heuristics (core, deterministic)
 Layer 2: Classifier-based extraction (core, requires models)
-Layer 3: LLM-as-judge interpretation (experimental, optional)
+Layer 3: LLM-as-judge interpretation (planned, optional)
 """
 
 from gpt_drift.extractors.lexical import LexicalExtractor
