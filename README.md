@@ -86,6 +86,8 @@ gpt-drift run mock --mock --mock-version v2 -o v2.json
 gpt-drift compare v1.json v2.json
 ```
 
+The CLI default is `--runs 5`; override it with `--runs N`. Higher run counts multiply real-model API calls and cost.
+
 ### CLI
 
 ```bash
